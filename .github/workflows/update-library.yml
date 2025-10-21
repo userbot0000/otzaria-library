@@ -1,0 +1,178 @@
+name: Update Library and create manifest
+
+on:
+  push:
+    paths:
+      - "Ben-YehudaToOtzaria/ספרים/אוצריא"
+      - "DictaToOtzaria/ספרים/ערוך/אוצריא"
+      - "OnYourWayToOtzaria/ספרים/אוצריא"
+      - "OraytaToOtzaria/ספרים/אוצריא"
+      - "tashmaToOtzaria/ספרים/אוצריא"
+      - "sefariaToOtzaria/sefaria_export/ספרים/אוצריא"
+      - "sefariaToOtzaria/sefaria_api/ספרים/אוצריא"
+      - "MoreBooks/ספרים/אוצריא"
+      - "wiki_jewish_books/ספרים/אוצריא"
+      - "Ben-YehudaToOtzaria/ספרים/links"
+      - "DictaToOtzaria/ספרים/ערוך/links"
+      - "OnYourWayToOtzaria/ספרים/links"
+      - "OraytaToOtzaria/ספרים/links"
+      - "tashmaToOtzaria/ספרים/links"
+      - "sefariaToOtzaria/sefaria_export/ספרים/links"
+      - "sefariaToOtzaria/sefaria_api/ספרים/links"
+      - "MoreBooks/ספרים/links"
+      - "wiki_jewish_books/ספרים/links"
+
+# שמירת הטריגר הישן כתגובה כדי שלא יפעל בפועל
+# on:
+#   schedule:
+#     - cron: '0 6 * * 5'  # מפעיל את ה-Workflow כל יום שישי בשעה 8:00 שעון ישראל (3:00 UTC)
+#
+#   workflow_dispatch:  # מאפשר הפעלה ידנית
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'github-actions'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install bs4 requests pyluach
+
+      - name: update in mitmachim
+        env:
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+          TOKEN_YEMOT: ${{ secrets.TOKEN_YEMOT }}
+          GOOGLE_CHAT_URL: ${{ secrets.GOOGLE_CHAT_URL }}
+        run: |
+          python send_update/main.py
+          
+      - name: Sync files and folders
+        run: |
+          python sync_and_merge_folders.py
+
+      - name: Generate New Files Manifest (New format - with full paths from sources)
+        run: |          
+          echo "{" > files_manifest.json
+          
+          # Add metadata.json (root file)
+          if [ -f "./metadata.json" ]; then
+            hash=$(sha256sum "./metadata.json" | cut -d" " -f1)
+            echo "\"metadata.json\": {\"hash\": \"$hash\"}," >> files_manifest.json
+          fi
+          
+          # Find all files in source directories (אוצריא files from all sources)
+          find . \( \
+            -path "./Ben-YehudaToOtzaria/ספרים/אוצריא/*" -o \
+            -path "./DictaToOtzaria/ספרים/ערוך/אוצריא/*" -o \
+            -path "./OnYourWayToOtzaria/ספרים/אוצריא/*" -o \
+            -path "./OraytaToOtzaria/ספרים/אוצריא/*" -o \
+            -path "./tashmaToOtzaria/ספרים/אוצריא/*" -o \
+            -path "./sefariaToOtzaria/sefaria_export/ספרים/אוצריא/*" -o \
+            -path "./sefariaToOtzaria/sefaria_api/ספרים/אוצריא/*" -o \
+            -path "./MoreBooks/ספרים/אוצריא/*" -o \
+            -path "./wiki_jewish_books/ספרים/אוצריא/*" \
+          \) -type f \
+          ! -path "./.git/*" \
+          ! -path "./.github/*" \
+          2>/dev/null | while read -r file; do
+            path="${file#./}"
+            hash=$(sha256sum "$file" | cut -d" " -f1)
+            echo "\"$path\": {\"hash\": \"$hash\"},"
+          done >> files_manifest.json
+          
+          # Find all link files from all sources
+          find . \( \
+            -path "./Ben-YehudaToOtzaria/links/*" -o \
+            -path "./DictaToOtzaria/links/*" -o \
+            -path "./OnYourWayToOtzaria/links/*" -o \
+            -path "./OraytaToOtzaria/links/*" -o \
+            -path "./tashmaToOtzaria/links/*" -o \
+            -path "./sefariaToOtzaria/sefaria_export/links/*" -o \
+            -path "./sefariaToOtzaria/sefaria_api/links/*" -o \
+            -path "./MoreBooks/links/*" -o \
+            -path "./wiki_jewish_books/links/*" \
+          \) -type f \
+          ! -path "./.git/*" \
+          ! -path "./.github/*" \
+          2>/dev/null | while read -r file; do
+            path="${file#./}"
+            hash=$(sha256sum "$file" | cut -d" " -f1)
+            echo "\"$path\": {\"hash\": \"$hash\"},"
+          done >> files_manifest.json
+          
+          # Remove the trailing comma from the last entry and close the JSON
+          sed -i '$ s/,$//' files_manifest.json
+          echo "}" >> files_manifest.json
+
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Update files manifest and sync folders"
+          default_author: github_actions
+
+      - name: Create Release Archive
+        run: |
+          # Archive includes all source directories (not the merged folders)
+          # This matches the structure in files_manifest_new.json
+          
+          # Start with manifest files
+          zip -q otzaria_latest.zip files_manifest.json metadata.json || true
+          
+          # Add all book source directories (if they exist)
+          [ -d "Ben-YehudaToOtzaria/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "Ben-YehudaToOtzaria/ספרים/אוצריא" || true
+          [ -d "DictaToOtzaria/ספרים/ערוך/אוצריא" ] && zip -qr otzaria_latest.zip "DictaToOtzaria/ספרים/ערוך/אוצריא" || true
+          [ -d "OnYourWayToOtzaria/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "OnYourWayToOtzaria/ספרים/אוצריא" || true
+          [ -d "OraytaToOtzaria/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "OraytaToOtzaria/ספרים/אוצריא" || true
+          [ -d "tashmaToOtzaria/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "tashmaToOtzaria/ספרים/אוצריא" || true
+          [ -d "sefariaToOtzaria/sefaria_export/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "sefariaToOtzaria/sefaria_export/ספרים/אוצריא" || true
+          [ -d "sefariaToOtzaria/sefaria_api/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "sefariaToOtzaria/sefaria_api/ספרים/אוצריא" || true
+          [ -d "MoreBooks/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "MoreBooks/ספרים/אוצריא" || true
+          [ -d "wiki_jewish_books/ספרים/אוצריא" ] && zip -qr otzaria_latest.zip "wiki_jewish_books/ספרים/אוצריא" || true
+          
+          # Add all link source directories (if they exist)
+          [ -d "Ben-YehudaToOtzaria/links" ] && zip -qr otzaria_latest.zip "Ben-YehudaToOtzaria/links" || true
+          [ -d "DictaToOtzaria/links" ] && zip -qr otzaria_latest.zip "DictaToOtzaria/links" || true
+          [ -d "OnYourWayToOtzaria/links" ] && zip -qr otzaria_latest.zip "OnYourWayToOtzaria/links" || true
+          [ -d "OraytaToOtzaria/links" ] && zip -qr otzaria_latest.zip "OraytaToOtzaria/links" || true
+          [ -d "tashmaToOtzaria/links" ] && zip -qr otzaria_latest.zip "tashmaToOtzaria/links" || true
+          [ -d "sefariaToOtzaria/sefaria_export/links" ] && zip -qr otzaria_latest.zip "sefariaToOtzaria/sefaria_export/links" || true
+          [ -d "sefariaToOtzaria/sefaria_api/links" ] && zip -qr otzaria_latest.zip "sefariaToOtzaria/sefaria_api/links" || true
+          [ -d "MoreBooks/links" ] && zip -qr otzaria_latest.zip "MoreBooks/links" || true
+          [ -d "wiki_jewish_books/links" ] && zip -qr otzaria_latest.zip "wiki_jewish_books/links" || true
+          
+          echo "Archive created successfully with all available source directories"
+
+      - name: Delete existing 'latest' release and tag
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes || true
+          git push --delete origin latest || true
+      
+      - name: Create and push new tag  # יצירת תגית חדשה
+        run: |
+          git tag -f latest
+          git push origin latest --force
+
+      - name: Create Release
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create latest \
+            --title "Latest Otzaria Files" \
+            --notes "Latest version of Otzaria files" \
+            otzaria_latest.zip
