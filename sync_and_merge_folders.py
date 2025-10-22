@@ -61,7 +61,7 @@ csv_file_path = library_csv_dir / f"{library_ver}.csv"
 sources_books_file_path = Path("MoreBooks/ספרים/אוצריא") / "אודות התוכנה" / "SourcesBooks.csv"
 
 if csv_file_path.exists():
-    with csv_file_path.open("r", encoding="utf-8") as old_csvfile:
+    with csv_file_path.open("r", encoding="utf-8", newline="") as old_csvfile:
         old_csv_reader = csv.reader(old_csvfile)
         old_csv_values = list(old_csv_reader)
         if all(row in old_csv_values for row in new_csv_content) and all(row in new_csv_content for row in old_csv_values):
