@@ -31,7 +31,8 @@ def get_files_list(folder_path: Path, target_folder_path: Path) -> Generator[lis
 
 
 target_folder = Path("אוצריא")
-ver_file_path = target_folder / "אודות התוכנה" / "גירסת ספריה.txt"
+more_books_folder_path = Path("MoreBooks/ספרים/אוצריא")
+ver_file_path = more_books_folder_path / "אודות התוכנה" / "גירסת ספריה.txt"
 with ver_file_path.open("r", encoding="utf-8") as f:
     library_ver = int(f.read())
 

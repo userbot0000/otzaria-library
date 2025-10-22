@@ -2,7 +2,6 @@ name: Update Library and create manifest
 
 on:
   push:
-    branches: [ main, master ]
     paths:
       - "Ben-YehudaToOtzaria/ספרים/אוצריא/**"
       - "DictaToOtzaria/ספרים/ערוך/אוצריא/**"
@@ -22,13 +21,6 @@ on:
       - "sefariaToOtzaria/sefaria_api/ספרים/links/**"
       - "MoreBooks/ספרים/links/**"
       - "wiki_jewish_books/ספרים/links/**"
-  
-  # אפשרות להפעלה ידנית
-  workflow_dispatch:
-  
-  # גם על פול requests
-  pull_request:
-    branches: [ main, master ]
 
 # שמירת הטריגר הישן כתגובה כדי שלא יפעל בפועל
 # on:
@@ -43,20 +35,11 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'github-actions'
 
     steps:
-      - name: Debug Info
-        run: |
-          echo "=== Workflow Debug Info ==="
-          echo "Triggered by: ${{ github.event_name }}"
-          echo "Actor: ${{ github.actor }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit SHA: ${{ github.sha }}"
-          echo "=========================="
-          
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2
 
       - name: Set up Python
         uses: actions/setup-python@v5
