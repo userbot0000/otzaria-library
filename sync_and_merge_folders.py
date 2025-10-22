@@ -25,7 +25,7 @@ def get_files_list(folder_path: Path, target_folder_path: Path) -> Generator[lis
             target_file_path = target_folder_path / rel_file_path
             if not file.lower().endswith(".txt"):
                 continue
-            with target_file_path.open("r", encoding="utf-8") as f:
+            with file_path.open("r", encoding="utf-8") as f:
                 content = f.read().split("\n")
             yield [file, str(target_file_path), original_folder, str(len(content))]
 

@@ -21,6 +21,7 @@ on:
       - "sefariaToOtzaria/sefaria_api/ספרים/links/**"
       - "MoreBooks/ספרים/links/**"
       - "wiki_jewish_books/ספרים/links/**"
+    workflow_dispatch: 
 
 # שמירת הטריגר הישן כתגובה כדי שלא יפעל בפועל
 # on:
